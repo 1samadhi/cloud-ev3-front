@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedidos360 — Consola de operaciones</title>
+<style>
+  :root{
+    --bg:#0b1220; --surface:#111a2b; --surface-2:#18233a; --line:#263349;
+    --ink:#e8eef8; --ink-dim:#93a3bd; --ink-faint:#5d6e8a;
+    --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+       font-size:14px;line-height:1.5;display:grid;grid-template-columns:208px 1fr;min-height:100vh}
+  @media(max-width:820px){body{grid-template-columns:1fr}}
+
+  /* ---------- navegacion ---------- */
+  nav{background:var(--surface);border-right:1px solid var(--line);padding:18px 0;
+      display:flex;flex-direction:column;gap:2px}
+  .brand{padding:0 18px 16px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .brand b{font-size:15px;letter-spacing:-.2px}
+  .brand span{display:block;font-size:11px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px}
+  nav button{all:unset;cursor:pointer;padding:9px 18px;font-size:13.5px;color:var(--ink-dim);
+             border-left:2px solid transparent;display:flex;justify-content:space-between;align-items:center}
+  nav button:hover{background:var(--surface-2);color:var(--ink)}
+  nav button[aria-current="true"]{color:var(--ink);border-left-color:var(--accent);background:var(--surface-2)}
+  nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  nav button .port{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+  .navfoot{margin-top:auto;padding:14px 18px 0;border-top:1px solid var(--line);
+           font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* ---------- layout de pagina ---------- */
+  main{padding:26px 30px 60px;max-width:1080px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+        padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.3px}
+  .head p{margin:3px 0 0;color:var(--ink-dim);font-size:12.5px}
+  .pill{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:3px;
+        border:1px solid var(--line);color:var(--ink-dim);white-space:nowrap}
+  .pill.on{color:var(--ok);border-color:color-mix(in oklab,var(--ok) 40%,transparent)}
+  .pill.off{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 40%,transparent)}
+  section{display:none} section.active{display:block}
+
+  /* ---------- controles ---------- */
+  .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
+  label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+        color:var(--ink-faint);margin-bottom:5px;font-weight:600}
+  input{background:var(--bg);border:1px solid var(--line);color:var(--ink);
+        padding:8px 10px;border-radius:4px;font-size:13.5px;font-family:var(--mono);min-width:150px}
+  input:focus{outline:none;border-color:var(--accent)}
+  input:disabled{color:var(--ink-faint);background:var(--surface)}
+  button.act{all:unset;cursor:pointer;padding:9px 15px;border-radius:4px;font-size:13px;
+             font-weight:600;background:var(--accent);color:#06202e;min-height:38px;text-align:center}
+  button.act:hover{filter:brightness(1.1)}
+  button.act:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  button.act[disabled]{background:var(--surface-2);color:var(--ink-faint);cursor:not-allowed}
+  button.ghost{all:unset;cursor:pointer;padding:8px 13px;border:1px solid var(--line);
+               border-radius:4px;font-size:12.5px;color:var(--ink-dim);min-height:36px}
+  button.ghost:hover{border-color:var(--accent);color:var(--ink)}
+  button.ghost:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* ---------- avisos ---------- */
+  .notice{padding:11px 13px;border-radius:4px;font-size:13px;margin-bottom:16px;
+          border:1px solid var(--line);background:var(--surface)}
+  .notice.bad{border-color:var(--bad);background:color-mix(in oklab,var(--bad) 12%,var(--surface))}
+  .notice.ok{border-color:var(--ok);background:color-mix(in oklab,var(--ok) 12%,var(--surface))}
+  .notice b{display:block;margin-bottom:2px}
+  .notice code{font-family:var(--mono);font-size:12px;color:var(--accent)}
+
+  /* ---------- datos ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+     color:var(--ink-faint);padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  td{padding:9px 10px;border-bottom:1px solid var(--surface-2)}
+  tbody tr:hover{background:var(--surface)}
+  .num{font-family:var(--mono);text-align:right}
+  .rank{font-family:var(--mono);color:var(--accent);font-weight:600}
+  .empty{padding:34px 14px;text-align:center;color:var(--ink-faint);font-size:13px;
+         border:1px dashed var(--line);border-radius:5px}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;
+           background:var(--line);border:1px solid var(--line);border-radius:5px;overflow:hidden;margin-bottom:20px}
+  .metric{background:var(--surface);padding:13px 15px}
+  .metric dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);font-weight:600}
+  .metric dd{margin:5px 0 0;font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.5px}
+  .metric dd small{font-size:11px;color:var(--ink-faint);font-weight:400}
+
+  .trucks{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:11px;margin-bottom:20px}
+  .truck{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:13px}
+  .truck h3{margin:0 0 9px;font-size:13px;font-family:var(--mono);color:var(--accent)}
+  .truck div{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0}
+  .truck span{color:var(--ink-dim)}
+  .truck b{font-family:var(--mono)}
+  .cold{color:var(--accent)} .hot{color:var(--bad)}
+
+  .log{background:#060b14;border:1px solid var(--line);border-radius:5px;padding:11px 13px;
+       height:150px;overflow-y:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+  .log div{padding:1px 0;white-space:pre-wrap;word-break:break-word}
+  .log .t{color:var(--ink-faint)}
+  .log .e{color:var(--bad)} .log .s{color:var(--ok)}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
+     margin:24px 0 10px;font-weight:600}
+  .hint{font-size:12px;color:var(--ink-faint);margin:-8px 0 16px}
+  .hint code{font-family:var(--mono);color:var(--ink-dim)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand"><b>Pedidos360</b><span>DSY1107 · EV3</span></div>
+  <button data-go="pagos" aria-current="true">Pagos <span class="port">:8083</span></button>
+  <button data-go="recom">Recomendaciones <span class="port">:8084</span></button>
+  <button data-go="telem">Telemetría <span class="port">wss</span></button>
+  <button data-go="admin">Kafka <span class="port">:8085</span></button>
+  <div class="navfoot" id="health">comprobando…</div>
+</nav>
+
+<main>
+  <!-- ============ PAGOS ============ -->
+  <section id="pagos" class="active">
+    <div class="head">
+      <div><h1>Pagos</h1><p>Webpay Plus con detección de fraude por velocidad de intentos</p></div>
+      <span class="pill" id="p-pill">—</span>
+    </div>
+
+    <div class="row">
+      <div><label for="p-cli">Cliente</label><input id="p-cli" value="ismael" ></div>
+      <div><label for="p-amt">Monto (CLP)</label><input id="p-amt" type="number" value="15000"></div>
+      <button class="act" id="p-go">Pagar con WebPay</button>
+      <button class="ghost" id="p-burst">Ráfaga de 4 (probar bloqueo)</button>
+    </div>
+    <p class="hint">El antifraude cuenta por <code>clientId</code>: 3 intentos en menos de 10 s bloquean 30 min.
+       Con clientes distintos el contador arranca de cero.</p>
+
+    <div id="p-notice"></div>
+
+    <h2>Registro</h2>
+    <div class="log" id="p-log"></div>
+  </section>
+
+  <!-- ============ RECOMENDACIONES ============ -->
+  <section id="recom">
+    <div class="head">
+      <div><h1>Recomendaciones</h1><p>Top 5 por puntaje acumulado de interacciones — ver 1, carrito 2, compra 3</p></div>
+      <span class="pill" id="r-pill">—</span>
+    </div>
+
+    <div class="row">
+      <div><label for="r-usr">Usuario</label><input id="r-usr" value="user_test_1"></div>
+      <div><label for="r-item">Producto</label><input id="r-item" value="item_116"></div>
+      <button class="ghost" data-act="view">Ver (+1)</button>
+      <button class="ghost" data-act="cart">Carrito (+2)</button>
+      <button class="ghost" data-act="purchase">Comprar (+3)</button>
+      <button class="act" id="r-load">Refrescar Top 5</button>
+    </div>
+    <p class="hint">Cada interacción va a Kafka, el consumidor recalcula el ranking y se persiste.
+       Productos del catálogo: <code>item_101</code> … <code>item_120</code>.</p>
+
+    <div id="r-notice"></div>
+    <div id="r-out"><div class="empty">Sin recomendaciones. Generá interacciones y refrescá.</div></div>
+
+    <h2>Registro</h2>
+    <div class="log" id="r-log"></div>
+  </section>
+
+  <!-- ============ TELEMETRIA ============ -->
+  <section id="telem">
+    <div class="head">
+      <div><h1>Telemetría en tiempo real</h1><p>Cadena de frío por WebSocket — API Gateway → Lambda → navegador</p></div>
+      <span class="pill off" id="t-pill">desconectado</span>
+    </div>
+
+    <div class="row">
+      <div style="flex:1"><label for="t-url">Endpoint WebSocket</label>
+        <input id="t-url" style="width:100%" placeholder="wss://xxxx.execute-api.us-east-1.amazonaws.com/production"></div>
+      <button class="act" id="t-conn">Conectar</button>
+      <button class="ghost" id="t-dis" disabled>Desconectar</button>
+      <button class="ghost" id="t-sim">Simular datos</button>
+    </div>
+    <p class="hint">La URL cambia cada vez que se recrea el laboratorio, por eso es un campo y no una constante.
+       <b>Simular datos</b> inyecta lecturas locales para probar la interfaz sin AWS.</p>
+
+    <dl class="metrics">
+      <div class="metric"><dt>Camiones activos</dt><dd id="m1">0</dd></div>
+      <div class="metric"><dt>Lecturas por minuto</dt><dd id="m2">0</dd></div>
+      <div class="metric"><dt>Alertas de temperatura</dt><dd id="m3">0 <small>&gt; −10 °C</small></dd></div>
+    </dl>
+
+    <div id="t-out"><div class="empty">Sin datos. Conectá el WebSocket o simulá lecturas.</div></div>
+
+    <h2>Registro de eventos</h2>
+    <div class="log" id="t-log"></div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section id="admin">
+    <div class="head">
+      <div><h1>Administración de Kafka</h1><p>Tópicos, particiones, réplicas y desfase de los grupos de consumo</p></div>
+      <span class="pill" id="a-pill">—</span>
+    </div>
+    <div class="row">
+      <button class="act" id="a-load">Cargar estado del clúster</button>
+    </div>
+    <p class="hint">Requiere el microservicio administrador en <code>:8085</code>, que todavía no está construido.
+       Es el que pide la rúbrica para crear y listar tópicos y consultar el desfase.</p>
+    <div id="a-out"><div class="empty">Microservicio administrador pendiente.</div></div>
+  </section>
+</main>
+
+<script>
+const PAGOS = 'http://localhost:8083';
+const RECOM = 'http://localhost:8084';
+const ADMIN = 'http://localhost:8085';
+const $ = s => document.querySelector(s);
+
+/* -------- navegacion -------- */
+document.querySelectorAll('nav button[data-go]').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('nav button[data-go]').forEach(x=>x.setAttribute('aria-current','false'));
+    b.setAttribute('aria-current','true');
+    document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));
+    $('#'+b.dataset.go).classList.add('active');
+    localStorage.setItem('p360.tab', b.dataset.go);
+  };
+});
+const saved = localStorage.getItem('p360.tab');
+if (saved && $('#'+saved)) document.querySelector(`nav button[data-go="${saved}"]`).click();
+
+function log(sel, msg, cls=''){
+  const d=document.createElement('div');
+  d.innerHTML = `<span class="t">${new Date().toLocaleTimeString('es-CL')}</span> <span class="${cls}">${msg}</span>`;
+  const box=$(sel); box.appendChild(d); box.scrollTop=box.scrollHeight;
+  while(box.children.length>120) box.removeChild(box.firstChild);
+}
+function notice(sel, html, kind=''){ $(sel).innerHTML = html ? `<div class="notice ${kind}">${html}</div>` : ''; }
+
+/* -------- salud de los servicios --------
+   Se consultan endpoints REALES (los unicos con CORS habilitado). Un 400 o un
+   200 significan "vivo"; solo un fallo de red significa "caido". Pedir una ruta
+   inexistente como /api/ no sirve: no lleva cabecera CORS y el navegador la
+   bloquea incluso con el servicio arriba. */
+async function vivo(url, opciones){
+  try{
+    const r = await fetch(url, {...opciones, signal:AbortSignal.timeout(2500)});
+    return r.status < 500 || r.status === 500;
+  }catch(e){ return false; }
+}
+async function health(){
+  const [p, r, a] = await Promise.all([
+    vivo(PAGOS+'/api/pagos/iniciar', {method:'POST', headers:{'Content-Type':'application/json'},
+         body:'{"clientId":"","amount":0,"transactionId":"health"}'}),
+    vivo(RECOM+'/api/recomendaciones?userId=__health__', {}),
+    vivo(ADMIN+'/api/topicos', {})
+  ]);
+  $('#health').textContent = `8083 ${p?'●':'○'}  8084 ${r?'●':'○'}  8085 ${a?'●':'○'}`;
+  const set=(sel,ok)=>{ const e=$(sel); e.textContent = ok?'servicio activo':'servicio caído'; e.className='pill '+(ok?'on':'off'); };
+  set('#p-pill', p); set('#r-pill', r); set('#a-pill', a);
+}
+health(); setInterval(health, 15000);
+
+/* ================= PAGOS ================= */
+async function pagar(cli, monto, tx){
+  const res = await fetch(PAGOS+'/api/pagos/iniciar', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({clientId:cli, amount:Number(monto), transactionId:tx})
+  });
+  let body={}; try{ body = await res.json() }catch(e){}
+  return {status:res.status, body};
+}
+
+$('#p-go').onclick = async ()=>{
+  const cli=$('#p-cli').value.trim(), monto=$('#p-amt').value;
+  if(!cli){ notice('#p-notice','<b>Falta el cliente</b>El campo no puede estar vacío.','bad'); return; }
+  const tx='TX-'+Date.now();
+  $('#p-go').disabled=true; $('#p-go').textContent='Verificando…';
+  log('#p-log', `POST /api/pagos/iniciar  cliente=${cli} monto=${monto}`);
+  try{
+    const {status, body} = await pagar(cli, monto, tx);
+    if(status===429){
+      notice('#p-notice', `<b>Bloqueado por el antifraude</b>${body.message||''}`, 'bad');
+      log('#p-log', `HTTP 429 — cliente bloqueado`, 'e');
+    } else if(status===400){
+      notice('#p-notice', `<b>Datos inválidos</b>El monto debe ser mayor que cero y el cliente no puede estar vacío.`, 'bad');
+      log('#p-log', 'HTTP 400 — validación de entrada', 'e');
+    } else if(body.url && body.token){
+      notice('#p-notice', `<b>Transacción creada en Transbank</b>Token <code>${body.token.slice(0,24)}…</code><br>
+        Tarjeta de prueba VISA 4051 8856 0044 6623 · CVV 123 · RUT 11.111.111-1 · clave 123`, 'ok');
+      log('#p-log', `HTTP 200 — token recibido, redirigiendo por POST`, 's');
+      irAWebpay(body.url, body.token);
+    } else {
+      notice('#p-notice', `<b>Respuesta inesperada (HTTP ${status})</b><code>${JSON.stringify(body).slice(0,200)}</code>`, 'bad');
+      log('#p-log', `HTTP ${status}`, 'e');
+    }
+  }catch(e){
+    notice('#p-notice', `<b>No se pudo contactar el servicio de pagos</b>Revisá que esté corriendo en <code>:8083</code>.`, 'bad');
+    log('#p-log', 'error de red: '+e.message, 'e');
+  }
+  $('#p-go').disabled=false; $('#p-go').textContent='Pagar con WebPay';
+};
+
+/* Transbank EXIGE POST con token_ws en un form; un redirect GET es rechazado. */
+function irAWebpay(url, token){
+  const f=document.createElement('form'); f.action=url; f.method='POST'; f.target='_blank';
+  const i=document.createElement('input'); i.type='hidden'; i.name='token_ws'; i.value=token;
+  f.appendChild(i); document.body.appendChild(f); f.submit(); f.remove();
+}
+
+$('#p-burst').onclick = async ()=>{
+  const cli=$('#p-cli').value.trim()||'ismael';
+  $('#p-burst').disabled=true;
+  log('#p-log', `ráfaga de 4 intentos con el mismo cliente (${cli})`);
+  const codes=[];
+  for(let i=1;i<=4;i++){
+    try{ const {status}=await pagar(cli, $('#p-amt').value, `TXB-${Date.now()}-${i}`); codes.push(status);
+         log('#p-log', `intento ${i} → HTTP ${status}`, status===429?'e':'s'); }
+    catch(e){ codes.push('err'); log('#p-log', `intento ${i} → error de red`, 'e'); }
+  }
+  const bloqueo = codes.includes(429);
+  notice('#p-notice', `<b>Resultado de la ráfaga: ${codes.join(' · ')}</b>` +
+    (bloqueo ? 'El antifraude bloqueó al cliente, como se espera.'
+             : 'No hubo bloqueo. Revisá que el consumidor de Kafka esté procesando el tópico payment-attempts.'),
+    bloqueo?'ok':'bad');
+  $('#p-burst').disabled=false;
+};
+
+/* ================= RECOMENDACIONES ================= */
+const CATALOGO = {
+  item_101:['electronica','audio'], item_102:['electronica','perifericos'], item_103:['ropa','calzado'],
+  item_104:['ropa','vestuario'], item_105:['hogar','cocina'], item_106:['hogar','accesorios'],
+  item_107:['electronica','wearables'], item_108:['deportes','suplementos'], item_109:['electronica','monitores'],
+  item_110:['electronica','perifericos'], item_111:['electronica','audio'], item_112:['electronica','computacion'],
+  item_113:['ropa','vestuario'], item_114:['ropa','vestuario'], item_115:['ropa','accesorios'],
+  item_116:['hogar','electrodomesticos'], item_117:['hogar','cocina'], item_118:['deportes','fitness'],
+  item_119:['deportes','ciclismo'], item_120:['deportes','fitness']
+};
+
+document.querySelectorAll('[data-act]').forEach(b=> b.onclick = async ()=>{
+  const usr=$('#r-usr').value.trim(), item=$('#r-item').value.trim();
+  const [cat,tipo] = CATALOGO[item] || ['general','standard'];
+  b.disabled=true;
+  try{
+    const res = await fetch(RECOM+'/api/interacciones', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({clientId:usr, itemId:item, action:b.dataset.act, category:cat, productType:tipo})
+    });
+    log('#r-log', `${b.dataset.act} ${item} → HTTP ${res.status}`, res.ok?'s':'e');
+    if(res.ok){ notice('#r-notice',''); setTimeout(cargarTop5, 1200); }
+  }catch(e){
+    notice('#r-notice', `<b>No se pudo enviar la interacción</b>Revisá que el servicio esté en <code>:8084</code>.`, 'bad');
+    log('#r-log','error de red: '+e.message,'e');
+  }
+  b.disabled=false;
+});
+
+async function cargarTop5(){
+  const usr=$('#r-usr').value.trim();
+  try{
+    const res = await fetch(`${RECOM}/api/recomendaciones?userId=${encodeURIComponent(usr)}`);
+    const data = await res.json();
+    if(!Array.isArray(data) || !data.length){
+      $('#r-out').innerHTML = '<div class="empty">Sin recomendaciones para este usuario todavía.</div>';
+      log('#r-log', 'Top 5 vacío'); return;
+    }
+    $('#r-out').innerHTML = `<table><thead><tr>
+        <th>#</th><th>Producto</th><th>Marca</th><th>Categoría</th>
+        <th class="num">Precio</th><th class="num">Puntaje</th></tr></thead><tbody>${
+      data.map(r=>`<tr>
+        <td class="rank">${r.rankPosition ?? '—'}</td>
+        <td>${r.nombre ?? '<span style="font-family:var(--mono);color:var(--ink-faint)">'+(r.itemId??'')+'</span>'}</td>
+        <td>${r.marca ?? '—'}</td>
+        <td>${r.categoria ?? '—'}</td>
+        <td class="num">${r.precio!=null ? '$'+Number(r.precio).toLocaleString('es-CL') : '—'}</td>
+        <td class="num">${r.score ?? '—'}</td></tr>`).join('')}</tbody></table>`;
+    log('#r-log', `Top 5 cargado (${data.length} elementos)`, 's');
+  }catch(e){
+    notice('#r-notice', `<b>No se pudo leer el Top 5</b>Revisá <code>:8084</code>.`, 'bad');
+    log('#r-log','error: '+e.message,'e');
+  }
+}
+$('#r-load').onclick = cargarTop5;
+
+/* ================= TELEMETRIA ================= */
+let ws=null, camiones={}, lecturas=[], alertas=0, simTimer=null;
+const LIMITE_ALERTA = -10;
+
+function pintarTelemetria(){
+  const lista = Object.values(camiones);
+  $('#m1').textContent = lista.length;
+  const corte = Date.now()-60000;
+  lecturas = lecturas.filter(t=>t>corte);
+  $('#m2').textContent = lecturas.length;
+  $('#m3').innerHTML = `${alertas} <small>&gt; −10 °C</small>`;
+  if(!lista.length){ $('#t-out').innerHTML='<div class="empty">Sin datos. Conectá el WebSocket o simulá lecturas.</div>'; return; }
+  $('#t-out').innerHTML = `<div class="trucks">${lista.map(t=>`
+    <div class="truck"><h3>${t.camionId??'—'}</h3>
+      <div><span>Temperatura</span><b class="${t.temperatura>LIMITE_ALERTA?'hot':'cold'}">${t.temperatura ?? '—'} °C</b></div>
+      <div><span>Humedad</span><b>${t.humedad ?? '—'} %</b></div>
+      <div><span>Estado</span><b>${t.estado ?? '—'}</b></div>
+      <div><span>Actualizado</span><b>${t.timestamp?new Date(t.timestamp).toLocaleTimeString('es-CL'):'—'}</b></div>
+    </div>`).join('')}</div>`;
+}
+
+/* El broadcast de la Lambda llega como ARRAY de lecturas, no como objeto suelto. */
+function recibirLote(payload){
+  const lote = Array.isArray(payload) ? payload : [payload];
+  lote.forEach(t=>{
+    if(!t || !t.camionId) return;
+    camiones[t.camionId]=t; lecturas.push(Date.now());
+    if(typeof t.temperatura==='number' && t.temperatura>LIMITE_ALERTA) alertas++;
+  });
+  pintarTelemetria();
+}
+
+function estadoWs(conectado){
+  const p=$('#t-pill');
+  p.textContent = conectado?'conectado':'desconectado';
+  p.className = 'pill '+(conectado?'on':'off');
+  $('#t-conn').disabled=conectado; $('#t-dis').disabled=!conectado;
+}
+
+$('#t-conn').onclick = ()=>{
+  const url=$('#t-url').value.trim();
+  if(!/^wss?:\/\//.test(url)){
+    log('#t-log','la URL debe empezar con wss:// (el navegador usa wss, la Lambda usa https para postToConnection)','e');
+    return;
+  }
+  try{ ws && ws.close() }catch(e){}
+  const clientId = 'ismael_'+Date.now();
+  log('#t-log',`conectando con clientId=${clientId}`);
+  ws = new WebSocket(`${url}?clientId=${encodeURIComponent(clientId)}`);
+  ws.onopen = ()=>{ estadoWs(true); log('#t-log','conexión establecida','s'); };
+  ws.onmessage = ev=>{
+    log('#t-log','lote recibido: '+String(ev.data).slice(0,110));
+    try{ recibirLote(JSON.parse(ev.data)) }catch(e){ log('#t-log','JSON inválido: '+e.message,'e') }
+  };
+  ws.onclose = ()=>{ estadoWs(false); log('#t-log','conexión cerrada'); };
+  ws.onerror = ()=> log('#t-log','error de WebSocket','e');
+};
+$('#t-dis').onclick = ()=>{ try{ws.close()}catch(e){} ws=null; estadoWs(false); };
+
+/* Simulador local: permite trabajar la interfaz sin las Lambdas desplegadas. */
+$('#t-sim').onclick = ()=>{
+  if(simTimer){ clearInterval(simTimer); simTimer=null; $('#t-sim').textContent='Simular datos';
+                 log('#t-log','simulación detenida'); return; }
+  $('#t-sim').textContent='Detener simulación';
+  log('#t-log','simulación local iniciada (datos ficticios, sin AWS)','s');
+  const ids=['CAM-01','CAM-02','CAM-03','CAM-04'];
+  simTimer = setInterval(()=>{
+    const n = 1+Math.floor(Math.random()*2);
+    recibirLote(Array.from({length:n},()=>{
+      const t = Math.round((-25+Math.random()*17)*10)/10;
+      return { id:Math.random().toString(16).slice(2,10), camionId:ids[Math.floor(Math.random()*ids.length)],
+               timestamp:Date.now(), temperatura:t, humedad:Math.round((50+Math.random()*30)*10)/10,
+               estado: t>LIMITE_ALERTA?'ALERTA':'EN_RUTA' };
+    }));
+  }, 1800);
+};
+setInterval(pintarTelemetria, 5000);
+
+/* ================= ADMIN ================= */
+$('#a-load').onclick = async ()=>{
+  try{
+    const res = await fetch(ADMIN+'/api/topicos');
+    const data = await res.json();
+    $('#a-out').innerHTML = `<table><thead><tr><th>Tópico</th><th class="num">Particiones</th>
+      <th class="num">Réplicas</th><th>ISR</th></tr></thead><tbody>${
+      data.map(t=>`<tr><td style="font-family:var(--mono)">${t.nombre}</td>
+        <td class="num">${t.particiones}</td><td class="num">${t.replicas}</td>
+        <td>${t.isr ?? '—'}</td></tr>`).join('')}</tbody></table>`;
+  }catch(e){
+    $('#a-out').innerHTML = `<div class="notice bad"><b>El microservicio administrador no responde</b>
+      Todavía no está construido. Es el que la rúbrica pide para crear y listar tópicos
+      y consultar offsets y desfase por partición.</div>`;
+  }
+};
+</script>
+</body>
+</html>
