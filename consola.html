@@ -88,14 +88,6 @@
   .metric dd{margin:5px 0 0;font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.5px}
   .metric dd small{font-size:11px;color:var(--ink-faint);font-weight:400}
 
-  .trucks{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:11px;margin-bottom:20px}
-  .truck{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:13px}
-  .truck h3{margin:0 0 9px;font-size:13px;font-family:var(--mono);color:var(--accent)}
-  .truck div{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0}
-  .truck span{color:var(--ink-dim)}
-  .truck b{font-family:var(--mono)}
-  .cold{color:var(--accent)} .hot{color:var(--bad)}
-
   .log{background:#060b14;border:1px solid var(--line);border-radius:5px;padding:11px 13px;
        height:150px;overflow-y:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
   .log div{padding:1px 0;white-space:pre-wrap;word-break:break-word}
@@ -114,7 +106,7 @@
   <div class="brand"><b>Pedidos360</b><span>DSY1107 · EV3</span></div>
   <button data-go="pagos" aria-current="true">Pagos <span class="port">:8083</span></button>
   <button data-go="recom">Recomendaciones <span class="port">:8084</span></button>
-  <button data-go="telem">Telemetría <span class="port">wss</span></button>
+  <button data-go="telem">Operaciones <span class="port">wss</span></button>
   <button data-go="admin">Kafka <span class="port">:8085</span></button>
   <div class="navfoot" id="health">comprobando…</div>
 </nav>
@@ -167,30 +159,35 @@
     <div class="log" id="r-log"></div>
   </section>
 
-  <!-- ============ TELEMETRIA ============ -->
+  <!-- ============ DASHBOARD DE OPERACIONES ============ -->
   <section id="telem">
     <div class="head">
-      <div><h1>Telemetría en tiempo real</h1><p>Cadena de frío por WebSocket — API Gateway → Lambda → navegador</p></div>
-      <span class="pill off" id="t-pill">desconectado</span>
+      <div><h1>Operaciones en tiempo real</h1><p>Pulso de la tienda: qué se mira, cuánto se mueve y qué se bloquea</p></div>
+      <span class="pill off" id="t-pill">sin conexión</span>
     </div>
 
     <div class="row">
-      <div style="flex:1"><label for="t-url">Endpoint WebSocket</label>
+      <div style="flex:1"><label for="t-url">Endpoint WebSocket (opcional)</label>
         <input id="t-url" style="width:100%" placeholder="wss://xxxx.execute-api.us-east-1.amazonaws.com/production"></div>
       <button class="act" id="t-conn">Conectar</button>
       <button class="ghost" id="t-dis" disabled>Desconectar</button>
-      <button class="ghost" id="t-sim">Simular datos</button>
+      <button class="ghost" id="t-poll">Leer de los servicios</button>
     </div>
-    <p class="hint">La URL cambia cada vez que se recrea el laboratorio, por eso es un campo y no una constante.
-       <b>Simular datos</b> inyecta lecturas locales para probar la interfaz sin AWS.</p>
+    <p class="hint">Con el WebSocket conectado los datos llegan empujados desde API Gateway.
+       Sin él, <b>Leer de los servicios</b> consulta <code>:8084/api/metricas</code> y
+       <code>:8083/api/alertas</code> cada 5 segundos, lo que permite trabajar el tablero sin AWS.</p>
 
     <dl class="metrics">
-      <div class="metric"><dt>Camiones activos</dt><dd id="m1">0</dd></div>
-      <div class="metric"><dt>Lecturas por minuto</dt><dd id="m2">0</dd></div>
-      <div class="metric"><dt>Alertas de temperatura</dt><dd id="m3">0 <small>&gt; −10 °C</small></dd></div>
+      <div class="metric"><dt>Interacciones por minuto</dt><dd id="m2">0</dd></div>
+      <div class="metric"><dt>Usuarios activos</dt><dd id="m1">0 <small>5 min</small></dd></div>
+      <div class="metric"><dt>Bloqueos de fraude vigentes</dt><dd id="m3">0</dd></div>
     </dl>
 
-    <div id="t-out"><div class="empty">Sin datos. Conectá el WebSocket o simulá lecturas.</div></div>
+    <h2>Productos más vistos</h2>
+    <div id="t-out"><div class="empty">Sin datos. Conectá el WebSocket o leé de los servicios.</div></div>
+
+    <h2>Alertas de fraude</h2>
+    <div id="t-alertas"><div class="empty">Sin bloqueos vigentes.</div></div>
 
     <h2>Registro de eventos</h2>
     <div class="log" id="t-log"></div>
@@ -205,16 +202,24 @@
     <div class="row">
       <button class="act" id="a-load">Cargar estado del clúster</button>
     </div>
-    <p class="hint">Requiere el microservicio administrador en <code>:8085</code>, que todavía no está construido.
-       Es el que pide la rúbrica para crear y listar tópicos y consultar el desfase.</p>
-    <div id="a-out"><div class="empty">Microservicio administrador pendiente.</div></div>
+    <p class="hint">Servido por el microservicio administrador en <code>:8085</code>, que opera el clúster
+       con el AdminClient de Kafka: crea y lista tópicos, y consulta offsets y desfase por partición.</p>
+    <div id="a-out"><div class="empty">Cargá el estado para ver tópicos y grupos de consumo.</div></div>
   </section>
 </main>
 
+<!-- Generado por el entrypoint de nginx a partir de variables de entorno.
+     Se carga ANTES del script principal para que las URL ya esten definidas. -->
+<script src="config.js"></script>
 <script>
-const PAGOS = 'http://localhost:8083';
-const RECOM = 'http://localhost:8084';
-const ADMIN = 'http://localhost:8085';
+/* Las URL base viven en config.js, FUERA del HTML, porque cambian segun el entorno:
+   en desarrollo apuntan a los puertos locales y en AWS a las rutas de API Gateway.
+   nginx genera config.js al arrancar desde variables de entorno (ver docker-entrypoint.sh),
+   asi que pasar de local a AWS no recompila ni reconstruye la imagen. */
+const CFG   = window.PEDIDOS360_CONFIG || {};
+const PAGOS = CFG.pagos || 'http://localhost:8083';
+const RECOM = CFG.recomendaciones || 'http://localhost:8084';
+const ADMIN = CFG.admin || 'http://localhost:8085';
 const $ = s => document.querySelector(s);
 
 /* -------- navegacion -------- */
@@ -383,41 +388,89 @@ async function cargarTop5(){
 }
 $('#r-load').onclick = cargarTop5;
 
-/* ================= TELEMETRIA ================= */
-let ws=null, camiones={}, lecturas=[], alertas=0, simTimer=null;
-const LIMITE_ALERTA = -10;
+/* ================= DASHBOARD DE OPERACIONES ================= */
+let ws=null, pollTimer=null;
 
-function pintarTelemetria(){
-  const lista = Object.values(camiones);
-  $('#m1').textContent = lista.length;
-  const corte = Date.now()-60000;
-  lecturas = lecturas.filter(t=>t>corte);
-  $('#m2').textContent = lecturas.length;
-  $('#m3').innerHTML = `${alertas} <small>&gt; −10 °C</small>`;
-  if(!lista.length){ $('#t-out').innerHTML='<div class="empty">Sin datos. Conectá el WebSocket o simulá lecturas.</div>'; return; }
-  $('#t-out').innerHTML = `<div class="trucks">${lista.map(t=>`
-    <div class="truck"><h3>${t.camionId??'—'}</h3>
-      <div><span>Temperatura</span><b class="${t.temperatura>LIMITE_ALERTA?'hot':'cold'}">${t.temperatura ?? '—'} °C</b></div>
-      <div><span>Humedad</span><b>${t.humedad ?? '—'} %</b></div>
-      <div><span>Estado</span><b>${t.estado ?? '—'}</b></div>
-      <div><span>Actualizado</span><b>${t.timestamp?new Date(t.timestamp).toLocaleTimeString('es-CL'):'—'}</b></div>
-    </div>`).join('')}</div>`;
+function pintarMetricas(m){
+  if(!m) return;
+  $('#m2').textContent = m.interaccionesPorMinuto ?? 0;
+  $('#m1').innerHTML = `${m.usuariosActivos ?? 0} <small>5 min</small>`;
+  const vistos = m.productosMasVistos || [];
+  if(!vistos.length){
+    $('#t-out').innerHTML = '<div class="empty">Todavía no hay interacciones registradas.</div>';
+  } else {
+    $('#t-out').innerHTML = `<table><thead><tr>
+        <th>Producto</th><th>Categoría</th><th class="num">Interacciones</th></tr></thead><tbody>${
+      vistos.map(p=>`<tr>
+        <td>${p.nombre ?? '<span style="font-family:var(--mono);color:var(--ink-faint)">'+(p.itemId??'')+'</span>'}</td>
+        <td>${p.categoria ?? '—'}</td>
+        <td class="num">${p.vistas ?? 0}</td></tr>`).join('')}</tbody></table>`;
+  }
 }
 
-/* El broadcast de la Lambda llega como ARRAY de lecturas, no como objeto suelto. */
+function pintarAlertas(a){
+  if(!a) return;
+  $('#m3').textContent = a.bloqueosActivos ?? 0;
+  const lista = a.alertas || [];
+  if(!lista.length){
+    $('#t-alertas').innerHTML = '<div class="empty">Sin bloqueos vigentes.</div>';
+    return;
+  }
+  $('#t-alertas').innerHTML = `<table><thead><tr>
+      <th>Cliente</th><th class="num">Intentos</th><th class="num">Expira en</th>
+      <th>Detectado</th></tr></thead><tbody>${
+    lista.map(x=>`<tr>
+      <td style="font-family:var(--mono)">${x.idCliente ?? '—'}</td>
+      <td class="num">${x.cantidadIntentos ?? '—'}</td>
+      <td class="num">${x.minutosRestantes != null ? x.minutosRestantes+' min' : '—'}</td>
+      <td>${x.actualizadoEn ? String(x.actualizadoEn).replace('T',' ').slice(0,19) : '—'}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* Lectura directa de los microservicios. Permite tener el tablero funcionando
+   sin AWS: las mismas metricas que despues llegaran empujadas por el WebSocket. */
+async function leerDeServicios(){
+  try{
+    const [mRes, aRes] = await Promise.all([
+      fetch(RECOM+'/api/metricas'),
+      fetch(PAGOS+'/api/alertas')
+    ]);
+    if(mRes.ok) pintarMetricas(await mRes.json());
+    else log('#t-log', `métricas respondieron HTTP ${mRes.status}`, 'e');
+    if(aRes.ok) pintarAlertas(await aRes.json());
+    else log('#t-log', `alertas respondieron HTTP ${aRes.status}`, 'e');
+  }catch(e){
+    log('#t-log','no se pudo leer de los servicios: '+e.message,'e');
+  }
+}
+
+$('#t-poll').onclick = ()=>{
+  if(pollTimer){
+    clearInterval(pollTimer); pollTimer=null;
+    $('#t-poll').textContent='Leer de los servicios';
+    log('#t-log','lectura periódica detenida');
+    return;
+  }
+  $('#t-poll').textContent='Detener lectura';
+  log('#t-log','leyendo de los servicios cada 5 s','s');
+  leerDeServicios();
+  pollTimer = setInterval(leerDeServicios, 5000);
+};
+
+/* El broadcast de la Lambda llega como ARRAY de eventos, no como objeto suelto. */
 function recibirLote(payload){
   const lote = Array.isArray(payload) ? payload : [payload];
-  lote.forEach(t=>{
-    if(!t || !t.camionId) return;
-    camiones[t.camionId]=t; lecturas.push(Date.now());
-    if(typeof t.temperatura==='number' && t.temperatura>LIMITE_ALERTA) alertas++;
+  lote.forEach(ev=>{
+    if(!ev) return;
+    if(ev.tipo === 'metricas' || ev.productosMasVistos) pintarMetricas(ev);
+    else if(ev.tipo === 'alerta' || ev.bloqueosActivos != null) pintarAlertas(ev);
+    else log('#t-log','evento de tipo desconocido: '+JSON.stringify(ev).slice(0,90));
   });
-  pintarTelemetria();
 }
 
 function estadoWs(conectado){
   const p=$('#t-pill');
-  p.textContent = conectado?'conectado':'desconectado';
+  p.textContent = conectado?'conectado':'sin conexión';
   p.className = 'pill '+(conectado?'on':'off');
   $('#t-conn').disabled=conectado; $('#t-dis').disabled=!conectado;
 }
@@ -429,7 +482,7 @@ $('#t-conn').onclick = ()=>{
     return;
   }
   try{ ws && ws.close() }catch(e){}
-  const clientId = 'ismael_'+Date.now();
+  const clientId = 'operaciones_'+Date.now();
   log('#t-log',`conectando con clientId=${clientId}`);
   ws = new WebSocket(`${url}?clientId=${encodeURIComponent(clientId)}`);
   ws.onopen = ()=>{ estadoWs(true); log('#t-log','conexión establecida','s'); };
@@ -441,25 +494,6 @@ $('#t-conn').onclick = ()=>{
   ws.onerror = ()=> log('#t-log','error de WebSocket','e');
 };
 $('#t-dis').onclick = ()=>{ try{ws.close()}catch(e){} ws=null; estadoWs(false); };
-
-/* Simulador local: permite trabajar la interfaz sin las Lambdas desplegadas. */
-$('#t-sim').onclick = ()=>{
-  if(simTimer){ clearInterval(simTimer); simTimer=null; $('#t-sim').textContent='Simular datos';
-                 log('#t-log','simulación detenida'); return; }
-  $('#t-sim').textContent='Detener simulación';
-  log('#t-log','simulación local iniciada (datos ficticios, sin AWS)','s');
-  const ids=['CAM-01','CAM-02','CAM-03','CAM-04'];
-  simTimer = setInterval(()=>{
-    const n = 1+Math.floor(Math.random()*2);
-    recibirLote(Array.from({length:n},()=>{
-      const t = Math.round((-25+Math.random()*17)*10)/10;
-      return { id:Math.random().toString(16).slice(2,10), camionId:ids[Math.floor(Math.random()*ids.length)],
-               timestamp:Date.now(), temperatura:t, humedad:Math.round((50+Math.random()*30)*10)/10,
-               estado: t>LIMITE_ALERTA?'ALERTA':'EN_RUTA' };
-    }));
-  }, 1800);
-};
-setInterval(pintarTelemetria, 5000);
 
 /* ================= ADMIN ================= */
 $('#a-load').onclick = async ()=>{
