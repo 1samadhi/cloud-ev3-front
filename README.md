@@ -126,8 +126,26 @@ Los mensajes llegan como **arreglo** de eventos, no de uno en uno: la Lambda hac
 lotes. Cada elemento se enruta según su forma (`productosMasVistos` → métricas,
 `bloqueosActivos` → alertas).
 
-**Leer de los servicios** consulta `:8084/api/metricas` y `:8083/api/alertas` cada 5 segundos:
-las mismas métricas que después llegan empujadas, pero sin depender de AWS.
+**Leer de los servicios** consulta `:8084/api/metricas` y `:8083/api/alertas`: las mismas
+métricas que después llegan empujadas, pero sin depender de AWS.
+
+### Espera creciente
+
+El ciclo no tiene un intervalo fijo. Mientras los servicios responden lee cada 5 s; con cada
+fallo consecutivo duplica la espera (5 → 10 → 20 → 40 s, con techo de 60 s) y tras **5 fallos
+seguidos se detiene** y lo dice en pantalla, en vez de martillar un servicio caído para
+siempre. Una lectura exitosa devuelve el ciclo al intervalo base.
+
+Dos detalles que importan al leer el registro:
+
+- El error de cada servicio se anota sólo cuando **cambia**. Repetir la misma línea en cada
+  vuelta tapa el resto del registro justo cuando hace falta para diagnosticar.
+- Una caída parcial no castiga el intervalo: con `:8083` abajo y `:8084` arriba el tablero
+  sigue sirviendo, así que sólo cuenta como fallo cuando **ninguno** de los dos responde.
+
+Se reprograma un `setTimeout` en lugar de usar `setInterval` porque la espera cambia entre
+iteraciones y porque un intervalo fijo dispara la lectura siguiente aunque la anterior siga en
+vuelo, encolando peticiones contra un servicio que ya no da abasto.
 
 ## Kafka
 
@@ -148,6 +166,26 @@ Un 4xx también cuenta como "vivo": sólo un fallo de red marca el servicio como
 ruta inexistente no sirve, porque la respuesta no lleva cabecera CORS y el navegador la bloquea
 aunque el servicio esté arriba.
 
+## Tests
+
+```bash
+npm test          # una corrida
+npm run test:watch
+```
+
+Vitest con entorno jsdom. Cubren la lógica donde un error es silencioso en runtime:
+
+| Suite | Qué fija |
+|---|---|
+| `lib/api.test.ts` | el cliente HTTP con `fetch` simulado: de qué campo saca el mensaje cada servicio (`mensaje`, `message`, `error`, texto plano), que un fallo de red sea `status 0` y no un 500, que el **429 del antifraude vuelva como dato y no como excepción**, y que los identificadores se codifiquen en la URL |
+| `hooks/usePolling.test.ts` | el ciclo con timers falsos: progresión de la espera, que se rinda al quinto fallo, que se recupere, que no solape lecturas y que corte el timer al desmontar |
+| `lib/backoff.test.ts` | la progresión de la espera y el techo, incluido el caso de contador absurdo que daría `NaN` |
+| `lib/transbank.test.ts` | la normalización de estados: el SDK responde `AUTHORIZED`/`FAILED` y ms-pago `ANULADO`/`ERROR`, y un estado **ausente no es un rechazo** |
+| `lib/format.test.ts` | que `fechaHora` no corra 3 horas la fecha sin zona de Spring, y que `0` no se muestre como `—` |
+
+No hay tests de renderizado de pantallas: el valor estaba en la lógica, y las pantallas se
+verifican contra el mock en el navegador.
+
 ## Estructura
 
 ```
@@ -158,8 +196,12 @@ src/
   lib/catalogo.ts        catálogo de productos y tarjetas de prueba
   components/ui.tsx      primitivas: Card, Table, Badge, Metric, Notice…
   components/Shell.tsx   navegación lateral y cabecera de página
-  hooks/                 useHealth, useLog, useAsync
+  lib/backoff.ts         progresión de la espera creciente
+  lib/transbank.ts       estados de Webpay normalizados
+  hooks/                 useHealth, useLog, useAsync, usePolling
   screens/               una pantalla por ruta
   styles/globals.css     tokens de diseño
 mocks/servidor-mock.mjs  los tres microservicios simulados
 ```
+
+Los tests viven junto al archivo que prueban (`lib/api.ts` + `lib/api.test.ts`).
