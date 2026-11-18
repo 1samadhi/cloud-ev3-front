@@ -1,6 +1,7 @@
 import { API } from '../config'
 import type {
   Cluster,
+  EstadoActuator,
   ConsumerGroup,
   ConsumerGroupLag,
   CrearTopicoRequest,
@@ -77,6 +78,12 @@ const json = (body: unknown): RequestInit => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 })
+
+/* ===================== salud (los tres) ===================== */
+/* Sirve para cualquiera de las tres bases porque el endpoint es el mismo.
+   Un health DOWN responde 503, y ese caso lo resuelve quien llama leyendo
+   ApiError.body: el cuerpo del 503 trae el detalle por componente. */
+export const salud = (base: string) => pedir<EstadoActuator>(`${base}/actuator/health`)
 
 /* ======================= ms-pago :8083 ======================= */
 export const pagos = {

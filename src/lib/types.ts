@@ -1,6 +1,20 @@
 /* Tipos espejo de los DTO de Spring. Los nombres de campo son los que viajan en
    el JSON, no se renombran: cualquier desvío acá es un bug silencioso en runtime. */
 
+/* ---- Actuator (los tres servicios) ---- */
+/* El detalle por componente depende de lo que cada servicio tenga configurado:
+   ms-pago y ms-recomendaciones reportan "db", y ms-kafka-admin agrega
+   "kafkaCluster" con su indicador propio. Por eso components es abierto. */
+export type ComponenteActuator = {
+  status: string
+  details?: Record<string, unknown>
+}
+
+export type EstadoActuator = {
+  status: 'UP' | 'DOWN' | 'OUT_OF_SERVICE' | 'UNKNOWN' | string
+  components?: Record<string, ComponenteActuator>
+}
+
 /* ---- ms-pago :8083 ---- */
 export type PeticionPago = {
   clientId: string

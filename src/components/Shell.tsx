@@ -15,14 +15,22 @@ const NAV: Entrada[] = [
 export function Shell() {
   const { salud } = useHealth()
 
+  /* "degradado" se pinta ámbar y no rojo: el servicio responde, lo que está
+     caído es una dependencia suya (la base, o el clúster). Distinguirlos es
+     la diferencia entre revisar el servicio y revisar la infraestructura. */
   const estadoDe = (s: Servicio | null) => {
     if (s === null) return 'neutral' as const
     const v = salud[s]
-    return v === null ? ('neutral' as const) : v ? ('ok' as const) : ('bad' as const)
+    if (v === null) return 'neutral' as const
+    if (v === 'arriba') return 'ok' as const
+    if (v === 'degradado') return 'warn' as const
+    return 'bad' as const
   }
 
-  const vivos = Object.values(salud).filter((v) => v === true).length
-  const resueltos = Object.values(salud).filter((v) => v !== null).length
+  const estados = Object.values(salud)
+  const sanos = estados.filter((v) => v === 'arriba').length
+  const degradados = estados.filter((v) => v === 'degradado').length
+  const resueltos = estados.filter((v) => v !== null).length
 
   return (
     <div className="shell">
@@ -52,7 +60,11 @@ export function Shell() {
         <div className="nav__foot">
           <span className="nav__footlabel">Microservicios</span>
           <span className="nav__footvalue">
-            {resueltos === 0 ? 'comprobando…' : `${vivos} de 3 responden`}
+            {resueltos === 0
+              ? 'comprobando…'
+              : degradados > 0
+                ? `${sanos} de 3 sanos · ${degradados} degradado${degradados > 1 ? 's' : ''}`
+                : `${sanos} de 3 sanos`}
           </span>
         </div>
       </nav>

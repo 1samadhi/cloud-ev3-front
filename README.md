@@ -41,7 +41,19 @@ El mock (`mocks/servidor-mock.mjs`) responde los mismos contratos que los DTO de
 antifraude y ranking simulados en memoria. Sirve para trabajar la interfaz sin Docker, Kafka,
 MySQL ni Transbank — **no** para la evidencia de la evaluación, porque no publica en Kafka.
 
+También expone `/actuator/health` en los tres puertos. Para ver el estado *degradado* sin
+apagar nada:
+
+```bash
+curl "http://localhost:8085/mock/degradar?valor=1"   # health -> DOWN (503)
+curl "http://localhost:8085/mock/degradar?valor=0"   # vuelve a UP
+```
+
 ## Despliegue
+
+El `docker-compose.yml` de la raíz del **backend** ya construye esta imagen y la publica en
+`:8090`, esperando a que los tres microservicios estén sanos. Para eso espera este repositorio
+clonado al lado del suyo. Lo de abajo es el camino manual, imagen sola.
 
 ```bash
 npm run build        # genera dist/
@@ -158,13 +170,29 @@ enunciado y un clic distraído dejaría la demostración sin datos.
 
 ## Salud de los servicios
 
-El punto de la barra lateral se calcula sondeando `GET /api/alertas`, `GET /api/metricas` y
-`GET /api/cluster` cada 20 segundos. Son lecturas idempotentes y con CORS habilitado por el
-mapeo `/api/**`.
+El punto de la barra lateral lee `GET /actuator/health` de cada servicio cada 20 segundos, y
+distingue **tres** estados en lugar de dos:
 
-Un 4xx también cuenta como "vivo": sólo un fallo de red marca el servicio como caído. Pedir una
-ruta inexistente no sirve, porque la respuesta no lleva cabecera CORS y el navegador la bloquea
-aunque el servicio esté arriba.
+| Punto | Estado | Qué pasó |
+|---|---|---|
+| verde | `arriba` | 200 con `status: UP` |
+| ámbar | `degradado` | 503 con `status: DOWN`, o cualquier otra respuesta HTTP |
+| rojo | `caido` | fallo de red: el proceso no atiende |
+
+La distinción importa: un 503 de Actuator significa que **el servicio está vivo y una
+dependencia suya no** (la base, o el clúster de Kafka en el caso del administrador). Pintarlo
+rojo mandaría a revisar el servicio equivocado. El cuerpo del 503 trae el detalle por
+componente y queda disponible en `detalle` del hook.
+
+Sólo `status 0` —el que `ApiError.esDeRed` identifica— cuenta como caído.
+
+Antes se sondeaba un endpoint de negocio por servicio, y antes de eso un
+`POST /api/pagos/iniciar` con cliente vacío para provocar un 400. Funcionaba, pero mezclaba el
+monitoreo con la operación: ensuciaba los logs del servicio y dependía de que la validación
+siguiera rechazando ese cuerpo.
+
+Requiere que el backend tenga `/actuator/**` en su mapeo de CORS; sin eso el navegador bloquea
+la respuesta y los tres servicios aparecen caídos estando arriba.
 
 ## Tests
 
@@ -181,6 +209,7 @@ Vitest con entorno jsdom. Cubren la lógica donde un error es silencioso en runt
 | `hooks/usePolling.test.ts` | el ciclo con timers falsos: progresión de la espera, que se rinda al quinto fallo, que se recupere, que no solape lecturas y que corte el timer al desmontar |
 | `lib/backoff.test.ts` | la progresión de la espera y el techo, incluido el caso de contador absurdo que daría `NaN` |
 | `lib/transbank.test.ts` | la normalización de estados: el SDK responde `AUTHORIZED`/`FAILED` y ms-pago `ANULADO`/`ERROR`, y un estado **ausente no es un rechazo** |
+| `hooks/useHealth.test.ts` | el sondeo de salud: que pegue a `/actuator/health` y no a `/api`, y que un 503 sea *degradado* y no *caído* |
 | `lib/format.test.ts` | que `fechaHora` no corra 3 horas la fecha sin zona de Spring, y que `0` no se muestre como `—` |
 
 No hay tests de renderizado de pantallas: el valor estaba en la lógica, y las pantallas se

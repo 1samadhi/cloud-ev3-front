@@ -8,6 +8,13 @@
 
    Uso:  npm run mock     (en otra terminal, junto a npm run dev)
 
+   Expone también /actuator/health en los tres puertos, igual que los servicios
+   reales con Actuator, para poder trabajar el indicador de estado de la barra
+   lateral. Para ver el caso "degradado" sin apagar nada:
+
+       curl "http://localhost:8085/mock/degradar?valor=1"   # health -> DOWN (503)
+       curl "http://localhost:8085/mock/degradar?valor=0"   # vuelve a UP
+
    Lo que NO hace: publicar en Kafka. El antifraude, el ranking y el lag se
    simulan en memoria, así que esto sirve para la UI, no para la evaluación.
    --------------------------------------------------------------------------- */
@@ -45,6 +52,10 @@ const productoDe = (itemId) =>
 
 const ahoraIso = () => new Date().toISOString().slice(0, 19)
 
+/* Se degrada a mano para poder probar la interfaz: no hay forma de hacer caer
+   "sólo la base de datos" de un mock que no tiene base de datos. */
+let degradado = false
+
 /* ---------- utilidades HTTP ---------- */
 function responder(res, status, cuerpo) {
   const texto = typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo)
@@ -71,11 +82,34 @@ function leerCuerpo(req) {
   })
 }
 
+/* Mismo contrato que Actuator: 200 con status UP, 503 con status DOWN y el
+   detalle por componente en components. */
+function salud(res, nombre) {
+  const componentes = { diskSpace: { status: 'UP' } }
+  if (nombre !== 'ms-kafka-admin') {
+    componentes.db = { status: degradado ? 'DOWN' : 'UP', details: { database: 'MySQL' } }
+  } else {
+    componentes.kafkaCluster = {
+      status: degradado ? 'DOWN' : 'UP',
+      details: degradado
+        ? { motivo: 'simulado por el mock', brokers: 1, brokersMinimos: 2 }
+        : { clusterId: 'mock-cluster', brokers: 3, brokersMinimos: 2, controlador: 1 },
+    }
+  }
+  const estado = degradado ? 'DOWN' : 'UP'
+  return responder(res, degradado ? 503 : 200, { status: estado, components: componentes })
+}
+
 function servicio(puerto, nombre, manejador) {
   createServer(async (req, res) => {
     if (req.method === 'OPTIONS') return responder(res, 204, '')
     const url = new URL(req.url, `http://localhost:${puerto}`)
     try {
+      if (url.pathname === '/actuator/health') return salud(res, nombre)
+      if (url.pathname === '/mock/degradar') {
+        degradado = url.searchParams.get('valor') === '1'
+        return responder(res, 200, { degradado })
+      }
       const atendido = await manejador(req, res, url)
       if (!atendido) responder(res, 404, { mensaje: `ruta no encontrada: ${url.pathname}`, codigo: 404 })
     } catch (e) {
