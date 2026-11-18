@@ -138,6 +138,19 @@ Los mensajes llegan como **arreglo** de eventos, no de uno en uno: la Lambda hac
 lotes. Cada elemento se enruta según su forma (`productosMasVistos` → métricas,
 `bloqueosActivos` → alertas).
 
+### Reconexión
+
+API Gateway **cierra la conexión a los 10 minutos de inactividad**, y el cierre no llega como
+error. Sin reconexión, un tablero que se deja abierto durante la presentación deja de recibir
+datos en silencio: nada lo delata hasta que alguien nota que los números no se mueven.
+
+`useWebSocket` reconecta solo con la misma progresión creciente de la lectura directa (2 → 4 →
+8 → 16 → 30 s) y se rinde tras 5 intentos, avisando en pantalla. Si el endpoint cambió porque
+se recreó la infraestructura, insistir cada segundo no lo va a resucitar.
+
+Un cierre que **pidió el usuario** no dispara reconexión: sin esa distinción, pulsar
+*Desconectar* reabriría el socket que se acaba de cerrar.
+
 **Leer de los servicios** consulta `:8084/api/metricas` y `:8083/api/alertas`: las mismas
 métricas que después llegan empujadas, pero sin depender de AWS.
 
@@ -209,6 +222,7 @@ Vitest con entorno jsdom. Cubren la lógica donde un error es silencioso en runt
 | `hooks/usePolling.test.ts` | el ciclo con timers falsos: progresión de la espera, que se rinda al quinto fallo, que se recupere, que no solape lecturas y que corte el timer al desmontar |
 | `lib/backoff.test.ts` | la progresión de la espera y el techo, incluido el caso de contador absurdo que daría `NaN` |
 | `lib/transbank.test.ts` | la normalización de estados: el SDK responde `AUTHORIZED`/`FAILED` y ms-pago `ANULADO`/`ERROR`, y un estado **ausente no es un rechazo** |
+| `hooks/useWebSocket.test.ts` | la reconexión con un WebSocket simulado: que reconecte sólo ante un cierre no pedido, la progresión de la espera, que se rinda, y que *Desconectar* no reabra |
 | `hooks/useHealth.test.ts` | el sondeo de salud: que pegue a `/actuator/health` y no a `/api`, y que un 503 sea *degradado* y no *caído* |
 | `lib/format.test.ts` | que `fechaHora` no corra 3 horas la fecha sin zona de Spring, y que `0` no se muestre como `—` |
 
@@ -227,7 +241,7 @@ src/
   components/Shell.tsx   navegación lateral y cabecera de página
   lib/backoff.ts         progresión de la espera creciente
   lib/transbank.ts       estados de Webpay normalizados
-  hooks/                 useHealth, useLog, useAsync, usePolling
+  hooks/                 useHealth, useLog, useAsync, usePolling, useWebSocket
   screens/               una pantalla por ruta
   styles/globals.css     tokens de diseño
 mocks/servidor-mock.mjs  los tres microservicios simulados
