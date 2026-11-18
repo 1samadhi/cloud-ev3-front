@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LogPanel } from '../components/LogPanel'
 import { PageHeader } from '../components/Shell'
-import { Badge, Bar, Button, Card, Empty, Field, Input, Metric, Table } from '../components/ui'
+import { Badge, Bar, Button, Card, Empty, Field, Input, Metric, Notice, Table } from '../components/ui'
 import { WS_URL } from '../config'
 import { useLog } from '../hooks/useLog'
+import { usePolling } from '../hooks/usePolling'
 import { pagos, recomendaciones } from '../lib/api'
+import { describirEspera } from '../lib/backoff'
 import { fechaHora, num } from '../lib/format'
 import type { Metricas, ResumenAlertas } from '../lib/types'
-
-const INTERVALO_POLL_MS = 5000
 
 type Fuente = 'nada' | 'poll' | 'ws'
 
@@ -20,44 +20,87 @@ export function OperacionesScreen() {
   const { lineas, log, limpiar } = useLog()
 
   const ws = useRef<WebSocket | null>(null)
-  const timer = useRef<number | null>(null)
+
+  /* Último error registrado por servicio. Sin esto, un servicio caído escribe
+     la misma línea en cada vuelta y el registro deja de servir para ver qué
+     pasó: sólo se anota cuando el mensaje CAMBIA. */
+  const ultimoError = useRef<Record<string, string>>({})
+
+  const registrarFallo = useCallback(
+    (servicio: string, mensaje: string) => {
+      if (ultimoError.current[servicio] !== mensaje) {
+        ultimoError.current[servicio] = mensaje
+        log(`${servicio}: ${mensaje}`, 'error')
+      }
+    },
+    [log],
+  )
 
   /* Lectura directa de los microservicios: las mismas métricas que después
-     llegan empujadas por el WebSocket. Permite trabajar el tablero sin AWS. */
+     llegan empujadas por el WebSocket. Permite trabajar el tablero sin AWS.
+
+     Lanza sólo si fallan LOS DOS: con uno vivo el tablero sigue sirviendo, así
+     que no corresponde castigar el intervalo por una caída parcial. */
   const leerDeServicios = useCallback(async () => {
     const [m, a] = await Promise.allSettled([recomendaciones.metricas(), pagos.alertas()])
-    if (m.status === 'fulfilled') setMetricas(m.value)
-    else log(`métricas: ${(m.reason as Error).message}`, 'error')
-    if (a.status === 'fulfilled') setAlertas(a.value)
-    else log(`alertas: ${(a.reason as Error).message}`, 'error')
-  }, [log])
 
-  const detener = useCallback(() => {
-    if (timer.current !== null) {
-      clearInterval(timer.current)
-      timer.current = null
+    if (m.status === 'fulfilled') {
+      setMetricas(m.value)
+      delete ultimoError.current.metricas
+    } else {
+      registrarFallo('metricas', (m.reason as Error).message)
     }
+
+    if (a.status === 'fulfilled') {
+      setAlertas(a.value)
+      delete ultimoError.current.alertas
+    } else {
+      registrarFallo('alertas', (a.reason as Error).message)
+    }
+
+    if (m.status === 'rejected' && a.status === 'rejected') {
+      throw new Error('ningún servicio respondió')
+    }
+  }, [registrarFallo])
+
+  const poll = usePolling({ tarea: leerDeServicios, onAviso: log })
+
+  const cerrarWs = useCallback(() => {
     if (ws.current) {
       ws.current.onclose = null
       ws.current.close()
       ws.current = null
     }
-    setFuente('nada')
   }, [])
 
-  useEffect(() => detener, [detener])
+  const detener = useCallback(() => {
+    poll.detener()
+    cerrarWs()
+    ultimoError.current = {}
+    setFuente('nada')
+  }, [poll, cerrarWs])
+
+  /* El hook ya corta su propio timer al desmontar; acá sólo queda el socket. */
+  useEffect(() => cerrarWs, [cerrarWs])
+
+  /* Cuando el ciclo se rinde solo, la pantalla tiene que dejar de anunciar
+     "lectura directa activa". */
+  useEffect(() => {
+    if (poll.rendido) setFuente('nada')
+  }, [poll.rendido])
 
   function alternarPoll() {
     if (fuente === 'poll') {
-      detener()
+      poll.detener()
+      setFuente('nada')
       log('lectura periódica detenida')
       return
     }
-    detener()
+    cerrarWs()
+    ultimoError.current = {}
     setFuente('poll')
-    log(`leyendo de :8084/api/metricas y :8083/api/alertas cada ${INTERVALO_POLL_MS / 1000} s`, 'ok')
-    void leerDeServicios()
-    timer.current = window.setInterval(() => void leerDeServicios(), INTERVALO_POLL_MS)
+    log('leyendo de :8084/api/metricas y :8083/api/alertas, con espera creciente si fallan', 'ok')
+    poll.iniciar()
   }
 
   /* El broadcast de la Lambda llega como ARRAY de lecturas (envío por lotes),
@@ -81,7 +124,8 @@ export function OperacionesScreen() {
       log('la URL debe empezar con wss:// (o ws:// en pruebas locales)', 'error')
       return
     }
-    detener()
+    poll.detener()
+    cerrarWs()
     const clientId = `operaciones_${Date.now()}`
     log(`conectando con clientId=${clientId}`)
     const socket = new WebSocket(`${destino}?clientId=${encodeURIComponent(clientId)}`)
@@ -110,15 +154,31 @@ export function OperacionesScreen() {
   const maxVistas = vistos.length > 0 ? Math.max(...vistos.map((v) => v.vistas)) : 0
 
   const etiquetaFuente =
-    fuente === 'ws' ? 'WebSocket conectado' : fuente === 'poll' ? 'lectura directa activa' : 'sin fuente de datos'
+    fuente === 'ws'
+      ? 'WebSocket conectado'
+      : fuente === 'poll'
+        ? poll.fallos > 0
+          ? `reintentando cada ${describirEspera(poll.esperaMs)}`
+          : `lectura directa cada ${describirEspera(poll.esperaMs)}`
+        : 'sin fuente de datos'
+
+  const estadoFuente = fuente === 'nada' ? 'bad' : poll.fallos > 0 ? 'warn' : 'ok'
 
   return (
     <div className="stack">
       <PageHeader
         titulo="Operaciones en tiempo real"
         bajada="Pulso de la tienda: qué se mira, cuánto se mueve y qué se bloquea. Los datos llegan empujados por API Gateway o se leen directo de los microservicios."
-        accion={<Badge estado={fuente === 'nada' ? 'bad' : 'ok'}>{etiquetaFuente}</Badge>}
+        accion={<Badge estado={estadoFuente}>{etiquetaFuente}</Badge>}
       />
+
+      {poll.rendido && (
+        <Notice estado="bad" titulo="Lectura automática detenida">
+          Los servicios no respondieron {poll.fallos} veces seguidas, así que se cortó el ciclo en lugar de seguir
+          insistiendo. Revisá que <code>:8083</code> y <code>:8084</code> estén arriba y volvé a pulsar{' '}
+          <b>Leer de los servicios</b>.
+        </Notice>
+      )}
 
       <Card
         titulo="Fuente de datos"
