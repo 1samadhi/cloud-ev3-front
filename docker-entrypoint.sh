@@ -1,16 +1,16 @@
 #!/bin/sh
 # Genera config.js en el arranque a partir de variables de entorno.
 #
-# Por que asi y no con las URL escritas en el HTML: la misma imagen tiene que
+# Por que asi y no con las URL dentro del bundle: la misma imagen tiene que
 # servir en desarrollo (puertos locales) y en AWS (rutas de API Gateway). Si las
-# URL estuvieran en el HTML habria que reconstruir la imagen para cada entorno,
-# y la imagen dejaria de ser el mismo artefacto verificado.
+# URL se compilaran dentro del JS habria que reconstruir la imagen para cada
+# entorno, y la imagen dejaria de ser el mismo artefacto verificado.
 #
 # Variables que acepta, con el valor por defecto de desarrollo:
 #   API_PAGOS            http://localhost:8083
 #   API_RECOMENDACIONES  http://localhost:8084
 #   API_ADMIN            http://localhost:8085
-#   WS_URL               (vacio: el dashboard cae a leer de los servicios)
+#   WS_URL               (vacio: el tablero cae a leer de los servicios)
 #
 # En AWS, con API Gateway delante, las tres apuntan a la misma base y se
 # diferencian por la ruta del recurso, por ejemplo:

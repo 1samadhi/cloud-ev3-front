@@ -1,0 +1,450 @@
+/* ---------- badge ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.badge--ok {
+  color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+}
+.badge--bad {
+  color: var(--bad);
+  border-color: rgba(240, 68, 56, 0.35);
+  background: rgba(240, 68, 56, 0.08);
+}
+.badge--warn {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+/* ---------- dot ---------- */
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  flex: none;
+}
+.dot--ok {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+.dot--bad {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px rgba(240, 68, 56, 0.15);
+}
+.dot--warn {
+  background: var(--warn);
+}
+
+/* ---------- botones ---------- */
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 510;
+  letter-spacing: -0.13px;
+  padding: 7px 13px;
+  min-height: 32px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+.btn--primario {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+.btn--primario:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn--ghost {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn--peligro {
+  background: transparent;
+  border: 1px solid rgba(240, 68, 56, 0.3);
+  color: var(--bad);
+}
+.btn--peligro:hover:not(:disabled) {
+  background: rgba(240, 68, 56, 0.1);
+  border-color: rgba(240, 68, 56, 0.5);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- campos ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+}
+.field__label {
+  font-size: 11px;
+  font-weight: 510;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+/* El hint se saca del flujo: si ocupara alto, un campo con hint bajaria su
+   input y quedaria desalineado del resto de la fila. */
+.field__hint {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+.input {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  min-height: 32px;
+  width: 100%;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.input::placeholder {
+  color: var(--ink-4);
+  font-family: var(--sans);
+}
+.input:hover {
+  border-color: var(--line-strong);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+  background: var(--surface-2);
+}
+
+/* ---------- card ---------- */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+.card__title {
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--ink);
+  letter-spacing: -0.13px;
+}
+.card__desc {
+  font-size: 12.5px;
+  color: var(--ink-4);
+  margin-top: 2px;
+}
+.card__body {
+  padding: var(--s4);
+}
+.card__body:has(> .table-wrap) {
+  padding: 0;
+}
+
+/* ---------- métricas ---------- */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--s3);
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s3) var(--s4);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.metric__label {
+  font-size: 11px;
+  font-weight: 510;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+.metric__value {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.8px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.metric__value small {
+  font-size: 12px;
+  color: var(--ink-4);
+  margin-left: 5px;
+  letter-spacing: 0;
+}
+.metric__value--ok {
+  color: var(--ok);
+}
+.metric__value--bad {
+  color: var(--bad);
+}
+.metric__value--warn {
+  color: var(--warn);
+}
+.metric__note {
+  font-size: 12px;
+  color: var(--ink-4);
+}
+
+/* ---------- tablas ---------- */
+.table-wrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 510;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding: 9px var(--s4);
+  border-bottom: 1px solid var(--line-subtle);
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px var(--s4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--ink-2);
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover td {
+  background: var(--surface-1);
+}
+/* Las columnas numericas se encogen al contenido: repartir el ancho en partes
+   iguales deja los numeros flotando lejos de su encabezado y cuesta leerlos. */
+.table th.num,
+.table td.num {
+  text-align: right;
+  width: 1px;
+  white-space: nowrap;
+}
+
+/* ---------- vacío ---------- */
+.empty {
+  padding: var(--s6) var(--s4);
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+}
+
+/* ---------- avisos ---------- */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: 11px var(--s3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.notice strong {
+  display: block;
+  font-weight: 590;
+  color: var(--ink);
+}
+.notice__body {
+  margin-top: 3px;
+}
+.notice__body code {
+  font-size: 12px;
+  color: var(--accent-bright);
+  word-break: break-all;
+}
+.notice--ok {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.07);
+}
+.notice--bad {
+  border-color: rgba(240, 68, 56, 0.3);
+  background: rgba(240, 68, 56, 0.07);
+}
+.notice--warn {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.07);
+}
+.notice__close {
+  background: none;
+  border: none;
+  color: var(--ink-4);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.notice__close:hover {
+  color: var(--ink);
+}
+
+/* ---------- spinner ---------- */
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: girar 600ms linear infinite;
+}
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- lista clave/valor (configuración de tópico) ---------- */
+.kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1px;
+  background: var(--line-subtle);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.kv > div {
+  background: var(--bg-panel);
+  padding: 10px var(--s3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kv span {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--ink-4);
+}
+.kv b {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ---------- celda que actúa como enlace ---------- */
+.link-cell {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent-bright);
+  cursor: pointer;
+  text-align: left;
+}
+.link-cell:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* ---------- celda de producto (imagen + nombre + id) ---------- */
+.producto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.producto__img {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 1px solid var(--line-subtle);
+}
+/* Sin imagenUrl se muestra la inicial: un cuadro gris vacio parece un error de
+   carga, una inicial se lee como "este producto no trae foto". */
+.producto__img--vacia {
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-4);
+}
+.producto strong {
+  display: block;
+  font-weight: 510;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.producto small {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+/* ---------- barra de proporción ---------- */
+.bar {
+  display: block;
+  height: 4px;
+  width: 100%;
+  min-width: 48px;
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-bright);
+  border-radius: var(--r-pill);
+}
