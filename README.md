@@ -5,6 +5,9 @@ Interfaz de operación y supervisión del backend de streaming con Kafka.
 El backend está en un repositorio aparte:
 [cloud-ev3-kafka](https://github.com/1samadhi/cloud-ev3-kafka)
 
+El *por qué* de cada cambio, una tarea por documento, está en
+[`docs/trabajo/`](docs/trabajo/README.md).
+
 ## Qué contiene
 
 Aplicación React servida como estáticos por nginx. Cinco pantallas:
